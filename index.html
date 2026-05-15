@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Import Export Invoice Generator</title>
+  <meta name="description" content="Generate professional commercial export invoices, manage consignees & products, and download as Excel.">
+  <meta name="theme-color" content="#0a0f1e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- ===== Header ===== -->
+  <header id="app-header">
+    <div class="header-content">
+      <div class="header-title">
+        <div class="icon">📄</div>
+        <h1>Invoice Generator</h1>
+      </div>
+      <div class="header-badge">Import · Export</div>
+    </div>
+  </header>
+
+  <!-- ===== Supabase Notice ===== -->
+  <div id="supabase-notice" class="notice notice-warning" style="display: none;">
+    ⚠️ <span>Cloud storage not configured — using local storage. Edit <strong>supabase-config.js</strong> to enable.</span>
+  </div>
+
+  <!-- ===== Toast Container ===== -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- ===== Main Content ===== -->
+  <main id="app-content">
+
+    <!-- ==================== INVOICE TAB ==================== -->
+    <section id="tab-invoice" class="tab-content active">
+
+      <!-- Invoice Header -->
+      <div class="card">
+        <div class="card-title"><span class="ct-icon">🧾</span> Invoice Details</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="invoice-number">Invoice Number</label>
+            <input type="text" id="invoice-number" placeholder="e.g. MI/EXP/CI/10">
+          </div>
+          <div class="form-group">
+            <label for="invoice-date">Date</label>
+            <input type="date" id="invoice-date">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="invoice-currency">Currency</label>
+          <select id="invoice-currency" onchange="onCurrencyChange()">
+            <option value="USD">USD ($)</option>
+            <option value="INR">INR (₹)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Consignee Selection -->
+      <div class="card">
+        <div class="card-title"><span class="ct-icon">🏢</span> Consignee</div>
+        <div class="form-group">
+          <label for="consignee-select">Select Consignee</label>
+          <select id="consignee-select" onchange="onConsigneeSelect(this)">
+            <option value="">— Select Consignee —</option>
+          </select>
+        </div>
+        <div id="selected-consignee-info" class="customer-selected hidden">
+          <div>
+            <h4 id="sel-cons-name"></h4>
+            <p id="sel-cons-details"></p>
+          </div>
+          <button class="clear-btn" onclick="clearConsigneeSelection()" title="Clear">✕</button>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="openConsigneeModal()" style="margin-top:4px">
+          ➕ New Consignee
+        </button>
+      </div>
+
+      <!-- Products (from master) -->
+      <div class="card">
+        <div class="card-title"><span class="ct-icon">📦</span> Products</div>
+        <div id="invoice-product-list"></div>
+
+        <!-- Add product from master -->
+        <div class="form-row" style="margin-top:10px; align-items:flex-end;">
+          <div class="form-group" style="margin-bottom:0">
+            <label for="add-product-select">Select Product</label>
+            <select id="add-product-select">
+              <option value="">— Choose Product —</option>
+            </select>
+          </div>
+          <button class="btn btn-secondary" onclick="addProductFromMaster()" style="height:46px">
+            ➕ Add
+          </button>
+        </div>
+        <div style="text-align:center; margin-top:10px;">
+          <button class="btn btn-secondary btn-sm" onclick="addCustomProductRow()">
+            ✏️ Add Custom Product
+          </button>
+        </div>
+      </div>
+
+      <!-- Shipping Details -->
+      <div class="card">
+        <div class="card-title"><span class="ct-icon">🚢</span> Shipping Details</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="inv-supplier-ref">Supplier's Ref</label>
+            <input type="text" id="inv-supplier-ref" placeholder="Ref number">
+          </div>
+          <div class="form-group">
+            <label for="inv-despatched">Despatched Through</label>
+            <input type="text" id="inv-despatched" placeholder="e.g. NHAVA-SHEVA MUM">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="inv-container">Container Details</label>
+            <input type="text" id="inv-container" placeholder="e.g. 20FT X 1 CONTAINER">
+          </div>
+          <div class="form-group">
+            <label for="inv-num-pkgs">No. & Kind of Pkgs</label>
+            <input type="text" id="inv-num-pkgs" placeholder="e.g. 960 CARTONS">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="inv-net-wt">Net Weight (Kg)</label>
+            <input type="number" id="inv-net-wt" placeholder="0.00" step="any">
+          </div>
+          <div class="form-group">
+            <label for="inv-gross-wt">Gross Weight (Kg)</label>
+            <input type="number" id="inv-gross-wt" placeholder="0.00" step="any">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="inv-product-notes">Product Details (Packaging, Batch, Ingredients)</label>
+          <textarea id="inv-product-notes" rows="4" placeholder="e.g. 250gm PET bottle with cap&#10;Batch No: B09205&#10;Dt Mfg: 20.09.2025&#10;Dt Exp: 19.09.2027"></textarea>
+        </div>
+      </div>
+
+      <!-- Total -->
+      <div class="total-bar">
+        <span class="total-label">Total Amount</span>
+        <span class="total-amount" id="invoice-total">$0.00</span>
+      </div>
+
+      <!-- Amount in Words -->
+      <div class="card" style="padding:12px 16px;">
+        <div class="card-title" style="margin-bottom:4px; font-size:11px;">💬 Amount in Words</div>
+        <div id="amount-words" style="font-size:13px; font-weight:500; color:var(--accent);">Zero Only</div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="btn-group">
+        <button class="btn btn-primary btn-block" onclick="previewInvoice()" id="btn-preview">
+          👁️ Preview Invoice
+        </button>
+        <button class="btn btn-secondary btn-block" onclick="downloadExcel()" id="btn-download">
+          📥 Download Excel
+        </button>
+      </div>
+
+    </section>
+
+    <!-- ==================== CONSIGNEES TAB ==================== -->
+    <section id="tab-consignees" class="tab-content">
+
+      <div class="search-bar">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="consignee-search" placeholder="Search consignees...">
+      </div>
+
+      <button class="btn btn-primary btn-block" onclick="openConsigneeModal()" style="margin-bottom:16px">
+        ➕ Add Consignee
+      </button>
+
+      <div id="consignee-list"></div>
+
+    </section>
+
+    <!-- ==================== PRODUCTS TAB ==================== -->
+    <section id="tab-products" class="tab-content">
+
+      <div class="search-bar">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="product-search" placeholder="Search products...">
+      </div>
+
+      <button class="btn btn-primary btn-block" onclick="openProductModal()" style="margin-bottom:16px">
+        ➕ Add Product
+      </button>
+
+      <div id="product-master-list"></div>
+
+    </section>
+
+    <!-- ==================== HISTORY TAB ==================== -->
+    <section id="tab-history" class="tab-content">
+      <div class="card-title" style="margin-bottom:16px"><span class="ct-icon">📋</span> Invoice History</div>
+      <div id="history-list"></div>
+    </section>
+
+    <!-- ==================== EXPORTER TAB ==================== -->
+    <section id="tab-exporter" class="tab-content">
+      <div class="card">
+        <div class="card-title"><span class="ct-icon">🏭</span> Exporter Details</div>
+        <div class="form-group">
+          <label for="exp-name">Company Name *</label>
+          <input type="text" id="exp-name" placeholder="e.g. MIRAS IMPEX">
+        </div>
+        <div class="form-group">
+          <label for="exp-addr1">Address Line 1</label>
+          <input type="text" id="exp-addr1" placeholder="e.g. SR NO 45/1/1, MILKAT NO 1043">
+        </div>
+        <div class="form-group">
+          <label for="exp-addr2">Address Line 2</label>
+          <input type="text" id="exp-addr2" placeholder="e.g. UNDRI PISOLI, UNDRI, PUNE 411060">
+        </div>
+        <div class="form-group">
+          <label for="exp-country">Country</label>
+          <input type="text" id="exp-country" placeholder="e.g. INDIA" value="INDIA">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="exp-pan">PAN Number</label>
+            <input type="text" id="exp-pan" placeholder="e.g. ABCDE1234F">
+          </div>
+          <div class="form-group">
+            <label for="exp-iec">IEC Code</label>
+            <input type="text" id="exp-iec" placeholder="e.g. FCKPM3949H">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="exp-gstin">GSTIN</label>
+            <input type="text" id="exp-gstin" placeholder="e.g. 27FCKPM3949H1Z2">
+          </div>
+          <div class="form-group">
+            <label for="exp-statecode">State Code</label>
+            <input type="text" id="exp-statecode" placeholder="e.g. 27-Maharashtra">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="exp-adcode">AD-CODE</label>
+            <input type="text" id="exp-adcode" placeholder="e.g. 0180021-6200019">
+          </div>
+          <div class="form-group">
+            <label for="exp-enduse">Enduse Code</label>
+            <input type="text" id="exp-enduse" placeholder="e.g. GNX100">
+          </div>
+        </div>
+        <button class="btn btn-primary btn-block" onclick="saveExporter()" style="margin-top:12px">💾 Save Exporter Details</button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ===== Bottom Navigation (5 tabs) ===== -->
+  <nav id="bottom-nav">
+    <button class="nav-btn active" data-tab="invoice">
+      <span class="nav-icon">🧾</span>
+      <span>Invoice</span>
+    </button>
+    <button class="nav-btn" data-tab="consignees">
+      <span class="nav-icon">🏢</span>
+      <span>Consignees</span>
+    </button>
+    <button class="nav-btn" data-tab="products">
+      <span class="nav-icon">📦</span>
+      <span>Products</span>
+    </button>
+    <button class="nav-btn" data-tab="history">
+      <span class="nav-icon">📋</span>
+      <span>History</span>
+    </button>
+    <button class="nav-btn" data-tab="exporter">
+      <span class="nav-icon">🏭</span>
+      <span>Exporter</span>
+    </button>
+  </nav>
+
+  <!-- ===== Consignee Modal ===== -->
+  <div id="consignee-modal" class="modal-overlay" onclick="if(event.target===this)closeConsigneeModal()">
+    <div class="modal">
+      <div class="modal-handle"></div>
+      <h2 id="consignee-modal-title">Add Consignee</h2>
+      <form id="cons-form" onsubmit="event.preventDefault(); saveConsignee();" style="max-height:70vh;overflow-y:auto;padding-right:8px">
+        <div class="form-group">
+          <label for="cons-name">Consignee Name *</label>
+          <input type="text" id="cons-name" placeholder="e.g. RANREA GENERAL TRADING LLC" required>
+        </div>
+        <div class="form-group">
+          <label>Address (4 lines)</label>
+          <input type="text" id="cons-addr1" placeholder="Address Line 1" style="margin-bottom:6px">
+          <input type="text" id="cons-addr2" placeholder="Address Line 2" style="margin-bottom:6px">
+          <input type="text" id="cons-addr3" placeholder="Address Line 3" style="margin-bottom:6px">
+          <input type="text" id="cons-addr4" placeholder="Address Line 4">
+        </div>
+        <div class="form-group">
+          <label for="cons-lan">LAN No.</label>
+          <input type="text" id="cons-lan" placeholder="e.g. 0097148866900">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="cons-country">Country</label>
+            <input type="text" id="cons-country" placeholder="e.g. UAE">
+          </div>
+          <div class="form-group">
+            <label for="cons-gst">GST / Tax ID</label>
+            <input type="text" id="cons-gst" placeholder="e.g. 27FCKPM3949H1Z2">
+          </div>
+        </div>
+        <hr style="border-color:var(--border);margin:16px 0">
+        <div class="card-title" style="font-size:13px;margin-bottom:8px"><span class="ct-icon">📋</span> Notify Party</div>
+        <div class="form-group">
+          <label for="cons-notify-name">Notify Party Name</label>
+          <input type="text" id="cons-notify-name" placeholder="e.g. RANREA GENERAL TRADING LLC">
+        </div>
+        <div class="form-group">
+          <label>Notify Address (4 lines)</label>
+          <input type="text" id="cons-notify-addr1" placeholder="Notify Address Line 1" style="margin-bottom:6px">
+          <input type="text" id="cons-notify-addr2" placeholder="Notify Address Line 2" style="margin-bottom:6px">
+          <input type="text" id="cons-notify-addr3" placeholder="Notify Address Line 3" style="margin-bottom:6px">
+          <input type="text" id="cons-notify-addr4" placeholder="Notify Address Line 4">
+        </div>
+        <div class="form-group">
+          <label for="cons-notify-lan">Notify LAN No.</label>
+          <input type="text" id="cons-notify-lan" placeholder="e.g. 0097148866900">
+        </div>
+        <hr style="border-color:var(--border);margin:16px 0">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="cons-payment-terms">Payment Terms</label>
+            <input type="text" id="cons-payment-terms" placeholder="e.g. 15% Advance">
+          </div>
+          <div class="form-group">
+            <label for="cons-delivery-terms">Term of Delivery</label>
+            <input type="text" id="cons-delivery-terms" placeholder="e.g. C&F JEBEL ALI">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="cons-destination">Destination</label>
+          <input type="text" id="cons-destination" placeholder="e.g. JEBEL ALI,UAE">
+        </div>
+        <div class="btn-group" style="margin-top:20px">
+          <button type="submit" class="btn btn-primary btn-block">💾 Save Consignee</button>
+          <button type="button" class="btn btn-secondary btn-block" onclick="closeConsigneeModal()">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===== Product Master Modal ===== -->
+  <div id="product-modal" class="modal-overlay" onclick="if(event.target===this)closeProductModal()">
+    <div class="modal">
+      <div class="modal-handle"></div>
+      <h2 id="product-modal-title">Add Product</h2>
+      <form id="prod-form" onsubmit="event.preventDefault(); saveProduct();">
+        <div class="form-group">
+          <label for="prod-master-name">Product Name *</label>
+          <input type="text" id="prod-master-name" placeholder="e.g. Cotton Fabric" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="prod-master-hsn">HSN Code</label>
+            <input type="text" id="prod-master-hsn" placeholder="e.g. 5208">
+          </div>
+          <div class="form-group">
+            <label for="prod-master-unit">Unit</label>
+            <select id="prod-master-unit">
+              <option value="PCS">PCS</option>
+              <option value="KGS">KGS</option>
+              <option value="MTR">MTR</option>
+              <option value="LTR">LTR</option>
+              <option value="BOX">BOX</option>
+              <option value="SET">SET</option>
+              <option value="NOS">NOS</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="prod-master-marks">Marks & Numbers</label>
+          <input type="text" id="prod-master-marks" placeholder="e.g. ABC-001">
+        </div>
+        <div class="form-group">
+          <label for="prod-master-desc">Description</label>
+          <textarea id="prod-master-desc" placeholder="Detailed product description" rows="3"></textarea>
+        </div>
+        <hr style="border-color:var(--border);margin:16px 0">
+        <div class="card-title" style="font-size:13px;margin-bottom:8px"><span class="ct-icon">📦</span> Packaging Details</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="prod-master-pkg-type">Packaging Type</label>
+            <select id="prod-master-pkg-type">
+              <option value="Bottle">Bottle</option>
+              <option value="Packet">Packet</option>
+              <option value="Box">Box</option>
+              <option value="Bag">Bag</option>
+              <option value="Jar">Jar</option>
+              <option value="Can">Can</option>
+              <option value="Sachet">Sachet</option>
+              <option value="Carton">Carton</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="prod-master-unit-wt">Unit Weight (Kg)</label>
+            <input type="number" id="prod-master-unit-wt" placeholder="e.g. 0.250" step="any" min="0">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="prod-master-pkg-qty">Packing Qty (units per carton)</label>
+          <input type="number" id="prod-master-pkg-qty" placeholder="e.g. 24" step="1" min="1">
+        </div>
+        <div class="btn-group" style="margin-top:20px">
+          <button type="submit" class="btn btn-primary btn-block">💾 Save Product</button>
+          <button type="button" class="btn btn-secondary btn-block" onclick="closeProductModal()">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===== Invoice Preview Modal ===== -->
+  <div id="preview-modal" class="modal-overlay" onclick="if(event.target===this)closePreviewModal()">
+    <div class="modal preview-modal">
+      <div class="modal-handle"></div>
+      <div class="preview-actions">
+        <button class="btn btn-primary" onclick="saveAndDownload()">💾 Save & Download Excel</button>
+        <button class="btn btn-secondary" onclick="closePreviewModal()">Close</button>
+      </div>
+      <div id="preview-content"></div>
+    </div>
+  </div>
+
+  <!-- ===== External Libraries ===== -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+
+  <!-- ===== Application Scripts ===== -->
+  <script src="supabase-config.js"></script>
+  <script src="invoice-helpers.js"></script>
+  <script src="invoice-template.js"></script>
+  <script src="app.js"></script>
+
+</body>
+</html>
