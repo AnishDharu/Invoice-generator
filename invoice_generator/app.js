@@ -11,6 +11,7 @@ let invoiceHistory = [];
 let selectedConsignee = null;
 let editingConsigneeId = null;
 let editingProductId = null;
+let editingInvoiceId = null; // Tracks if we're editing a history invoice
 let currentInvoiceNumber = '';
 let invoiceProductCounter = 0;
 
@@ -584,8 +585,35 @@ async function downloadExcel() {
   if (items.length === 0) { showToast('Add at least one product', true); return; }
 
   const invoice = buildInvoiceObject(items);
+
+  // Save to DB before downloading (upsert: update if editing, insert if new)
+  try {
+    if (editingInvoiceId) {
+      // Update existing invoice
+      if (supabaseClient) {
+        await supabaseClient.from('invoice_items').delete().eq('invoice_id', editingInvoiceId);
+        const { error } = await supabaseClient.from('invoices').update(invoice).eq('id', editingInvoiceId);
+        if (error) throw new Error(error.message);
+        const itemsWithId = items.map(item => ({ ...item, invoice_id: editingInvoiceId }));
+        await db.addInvoiceItems(itemsWithId);
+      }
+      editingInvoiceId = null;
+    } else {
+      // Insert new invoice
+      const saved = await db.addInvoice(invoice);
+      if (saved && saved.id) {
+        const itemsWithId = items.map(item => ({ ...item, invoice_id: saved.id }));
+        await db.addInvoiceItems(itemsWithId);
+      }
+    }
+    await loadInvoiceHistory();
+  } catch (e) {
+    console.error('Save error:', e);
+    showToast('Save failed: ' + e.message, true);
+  }
+
   await exportToExcel(invoice, items);
-  showToast('Excel downloaded!');
+  showToast('Invoice saved & downloaded!');
 }
 
 async function saveAndDownload() {
@@ -654,8 +682,10 @@ function renderHistoryList() {
           <div class="history-amount">${sym}${parseFloat(inv.total_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
         </div>
         <div class="history-actions">
+          <button class="btn btn-secondary btn-sm" onclick="editHistoryInvoice('${inv.id}')">✏️ Edit</button>
           <button class="btn btn-secondary btn-sm" onclick="viewHistoryInvoice('${inv.id}')">👁️ View</button>
           <button class="btn btn-primary btn-sm" onclick="redownloadInvoice('${inv.id}')">📥 Excel</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteInvoice('${inv.id}')">🗑️</button>
         </div>
       </div>`;
   }).join('');
@@ -676,6 +706,82 @@ async function redownloadInvoice(id) {
   const items = await db.getInvoiceItems(id);
   await exportToExcel(inv, items);
   showToast('Excel downloaded!');
+}
+
+async function deleteInvoice(id) {
+  if (!confirm('Delete this invoice? This cannot be undone.')) return;
+  if (supabaseClient) {
+    // invoice_items cascade-deletes automatically
+    const { error } = await supabaseClient.from('invoices').delete().eq('id', id);
+    if (error) { showToast('Delete failed: ' + error.message, true); return; }
+  } else {
+    // localStorage fallback
+    const invoices = JSON.parse(localStorage.getItem('iieg_invoices') || '[]').filter(i => i.id !== id);
+    localStorage.setItem('iieg_invoices', JSON.stringify(invoices));
+    const items = JSON.parse(localStorage.getItem('iieg_invoice_items') || '[]').filter(i => i.invoice_id !== id);
+    localStorage.setItem('iieg_invoice_items', JSON.stringify(items));
+  }
+  showToast('Invoice deleted');
+  await loadInvoiceHistory();
+}
+
+async function editHistoryInvoice(id) {
+  const inv = invoiceHistory.find(i => i.id === id);
+  if (!inv) return;
+  const items = await db.getInvoiceItems(id);
+
+  // Switch to invoice tab
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector('[data-tab="invoice"]').classList.add('active');
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-invoice').classList.add('active');
+
+  // Fill invoice header
+  document.getElementById('invoice-number').value = inv.invoice_number || '';
+  document.getElementById('invoice-date').value = inv.invoice_date || '';
+  document.getElementById('invoice-currency').value = inv.currency || 'USD';
+
+  // Select consignee
+  if (inv.consignee_id) {
+    const sel = document.getElementById('consignee-select');
+    sel.value = inv.consignee_id;
+    onConsigneeSelect(sel);
+  }
+
+  // Fill shipping details
+  document.getElementById('inv-supplier-ref').value = inv.supplier_ref || '';
+  document.getElementById('inv-despatched').value = inv.despatched_through || '';
+  document.getElementById('inv-container').value = inv.container_details || '';
+  document.getElementById('inv-num-pkgs').value = inv.num_packages || '';
+  document.getElementById('inv-net-wt').value = inv.net_weight || '';
+  document.getElementById('inv-gross-wt').value = inv.gross_weight || '';
+  document.getElementById('inv-product-notes').value = inv.product_notes || '';
+
+  // Clear existing product rows and load saved items
+  document.getElementById('invoice-product-list').innerHTML = '';
+  invoiceProductCounter = 0;
+  items.forEach(item => {
+    addInvoiceProductRow({
+      product_name: item.product_name || '',
+      hsn_code: item.hsn_code || '',
+      marks: item.marks || '',
+      description: item.description || '',
+      unit: item.unit || 'PCS',
+      quantity: item.quantity || '',
+      price: item.price || '',
+      packaging_type: '',
+      unit_weight: 0,
+      packing_qty: 0
+    });
+  });
+
+  updateInvoiceTotal();
+
+  // Remember the invoice ID so download will UPDATE instead of INSERT
+  editingInvoiceId = id;
+
+  showToast('Invoice loaded for editing. Make changes and download again.');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 // ===== Currency Change Handler =====

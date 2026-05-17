@@ -124,7 +124,10 @@ const db = {
     if (supabaseClient) {
       const { data, error } = await supabaseClient.from('invoices').insert(invoice).select().single();
       if (!error) return data;
-      console.error('Supabase error:', error);
+      // Show visible error so user knows what went wrong
+      console.error('Supabase addInvoice error:', error);
+      if (typeof showToast === 'function') showToast('DB save failed: ' + error.message, true);
+      throw new Error(error.message);
     }
     return this._localAdd('invoices', invoice);
   },
@@ -140,7 +143,9 @@ const db = {
     if (supabaseClient) {
       const { data, error } = await supabaseClient.from('invoice_items').insert(items).select();
       if (!error) return data;
-      console.error('Supabase error:', error);
+      console.error('Supabase addInvoiceItems error:', error);
+      if (typeof showToast === 'function') showToast('DB items save failed: ' + error.message, true);
+      throw new Error(error.message);
     }
     return items.map(item => this._localAdd('invoice_items', item));
   },

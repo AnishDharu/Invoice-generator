@@ -34,7 +34,7 @@ async function exportToExcel(invoice, items) {
   });
 
   // ══════════ 1. LOAD TEMPLATE ══════════
-  const response = await fetch('/INVOICE PL.xlsx');
+  const response = await fetch('./INVOICE PL.xlsx');
   if (!response.ok) throw new Error('Template not found! Make sure INVOICE PL.xlsx exists.');
   const arrayBuffer = await response.arrayBuffer();
   const wb = new ExcelJS.Workbook();
