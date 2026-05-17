@@ -3,7 +3,6 @@
  * Handles consignee CRUD, product master CRUD, invoice creation,
  * multi-product support, invoice history, and tab navigation.
  */
-
 // ===== Global State =====
 let consignees = [];
 let productMaster = [];
