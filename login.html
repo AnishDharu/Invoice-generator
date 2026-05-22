@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Login - ExportHub</title>
+
+    <style>
+
+        body{
+            margin:0;
+            font-family:Arial, sans-serif;
+            background:#0f172a;
+            color:white;
+            display:flex;
+            justify-content:center;
+            align-items:center;
+            height:100vh;
+        }
+
+        .card{
+            background:#1e293b;
+            padding:40px;
+            border-radius:15px;
+            width:350px;
+            text-align:center;
+        }
+
+        h1{
+            margin-bottom:25px;
+        }
+
+        input{
+            width:100%;
+            padding:12px;
+            margin-bottom:15px;
+            border:none;
+            border-radius:8px;
+            font-size:16px;
+        }
+
+        button{
+            width:100%;
+            padding:12px;
+            border:none;
+            border-radius:8px;
+            background:#2563eb;
+            color:white;
+            font-size:16px;
+            cursor:pointer;
+            margin-bottom:10px;
+        }
+
+        button:hover{
+            background:#1d4ed8;
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="card">
+
+    <h1>Login</h1>
+
+    <input type="email" id="email" placeholder="Enter email">
+
+    <button onclick="sendOTP()">
+        Send OTP
+    </button>
+
+    <input type="text" id="otp" placeholder="Enter OTP">
+
+    <button onclick="verifyOTP()">
+        Verify OTP
+    </button>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+
+<script>
+
+const SUPABASE_URL = 'https://lgzzmrgtertzftfzpfvm.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxnenptcmd0ZXJ0emZ0ZnpwZnZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgyMzU5MjEsImV4cCI6MjA5MzgxMTkyMX0.SjFSLrGJn9re0g5iB1yXmo9q0DDyG3GUYfUtC4AV4SU';
+
+const client = supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_ANON_KEY
+);
+
+async function sendOTP(){
+
+    const email = document.getElementById('email').value;
+
+    const { error } = await client.auth.signInWithOtp({
+        email: email
+    });
+
+    if(error){
+        alert(error.message);
+    }else{
+        alert('OTP sent successfully!');
+    }
+}
+
+async function verifyOTP(){
+
+    const email = document.getElementById('email').value;
+
+    const token = document.getElementById('otp').value;
+
+    const { data, error } = await client.auth.verifyOtp({
+        email,
+        token,
+        type:'email'
+    });
+
+    if(error){
+        alert(error.message);
+    }else{
+        window.location.href = '/invoice_generator/index.html';
+    }
+}
+
+</script>
+
+</body>
+</html>
